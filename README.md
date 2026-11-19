@@ -1,4 +1,13 @@
-# Margin
+<p align="center">
+  <img src="docs/banner.png" alt="Margin: a PDF reader for textbooks with LaTeX notes and spaced-repetition cards" width="800">
+</p>
+
+<p align="center">
+  <a href="../../releases/latest"><b>Download for Windows</b></a> ·
+  <a href="#get-the-windows-installer-without-installing-anything-github-actions">Build it yourself</a>
+</p>
+
+---
 
 A PDF reader for textbooks with highlights, LaTeX notes, and spaced-repetition flashcards. It's a desktop app for Windows, built with Tauri (Rust + Svelte).
 

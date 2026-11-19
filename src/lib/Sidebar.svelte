@@ -1,8 +1,9 @@
 <script>
   import Icon from './Icon.svelte';
   import { app, ctl, title, saveSettings, saveDocs, openEditor, deleteAnno, confirmBox } from './state.svelte.js';
-  import { md, COLORS } from './md.js';
-  import { isDue, fmtIvl } from './sched.js';
+  import { md, COLORS, clozeHTML } from './md.js';
+  import { isDueS, fmtIvl } from './sched.js';
+  import { variants } from './cards.js';
   import { coverUrl } from './backend.js';
   import { startReview } from './review.svelte.js';
 
@@ -53,8 +54,13 @@
     .filter((a) => !q || [a.text, a.note, a.card?.front, a.card?.back].some((t) => t?.toLowerCase().includes(q))));
   function chip(a) {
     if (!a.card) return '';
-    const s = a.card.s, now = Date.now();
-    return s.state === 'new' ? ['card', 'card · new'] : isDue(a, now) ? ['due', 'card · due'] : ['card', 'card · ' + fmtIvl(s.due - now)];
+    const vs = variants(a), now = Date.now();
+    const kind = a.card.type === 'cloze' ? (vs.length > 1 ? `cloze ×${vs.length}` : 'cloze') : 'card';
+    if (!vs.length) return ['card', kind];
+    if (vs.some((v) => isDueS(v.s, now))) return ['due', kind + ' · due'];
+    if (vs.every((v) => v.s.state === 'new')) return ['card', kind + ' · new'];
+    const next = Math.min(...vs.filter((v) => v.s.state !== 'new').map((v) => v.s.due));
+    return ['card', kind + ' · ' + fmtIvl(next - now)];
   }
   async function del(a) { if (await confirmBox('Delete this annotation' + (a.card ? ' and its flashcard' : '') + '?')) deleteAnno(a); }
 
@@ -126,7 +132,9 @@
           <div class="meta">p. {a.page} {#if c}<span class="chip {c[0]}">{c[1]}</span>{/if}</div>
           <div class="quote">{#if a.kind === 'area'}<img src={a.image} alt="" />{:else}<div class="md">{@html md(a.text)}</div>{/if}</div>
           {#if a.note?.trim()}<div class="note md">{@html md(a.note)}</div>{/if}
-          {#if a.card && (a.card.front.trim() || a.card.back.trim())}
+          {#if a.card?.type === 'cloze'}
+            <div class="note md" style="font-size:12.5px">{@html clozeHTML(a.card.text, null)}</div>
+          {:else if a.card && (a.card.front.trim() || a.card.back.trim())}
             <div class="note md" style="font-size:12.5px">
               {#if a.card.front.trim()}<b>Q</b> {@html md(a.card.front)}{/if}
               {#if a.card.back.trim()}{#if a.card.front.trim()}<br />{/if}<b>A</b> {@html md(a.card.back)}{/if}

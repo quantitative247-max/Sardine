@@ -1,32 +1,39 @@
 <script>
   import Icon from './Icon.svelte';
   import { app, openEditor } from './state.svelte.js';
-  import { sideHTML, md, esc } from './md.js';
+  import { cardHTML, md } from './md.js';
+  import { getS, variants, keyLabel } from './cards.js';
   import { grade, fmtIvl, MIN } from './sched.js';
-  import { answer, undo, exitReview, counts, openContext, docName } from './review.svelte.js';
+  import { answer, undo, exitReview, counts, openContext, docName, curSched } from './review.svelte.js';
 
   const r = $derived(app.review);
   const a = $derived(r?.cur);
   const k = $derived(r ? counts() : { n: 0, l: 0, r: 0 });
-  const ivl = (g) => fmtIvl(grade($state.snapshot(a.card.s), g).due - Date.now());
+  const key = $derived(r?.key);
+  const ivl = (g) => { const s = curSched(); return s ? fmtIvl(grade($state.snapshot(s), g).due - Date.now()) : ''; };
   const soon = $derived.by(() => {
     if (!r || a) return null;
-    const all = r.ids.map(([d, i]) => app.annos[d]?.find((x) => x.id === i)).filter((x) => x?.card && x.card.s.state !== 'new');
-    return all.sort((x, y) => x.card.s.due - y.card.s.due)[0] || null;
+    const all = r.ids.map(([d, i, k]) => { const x = app.annos[d]?.find((y) => y.id === i); return x?.card && getS(x, k); }).filter((s) => s && s.state !== 'new');
+    return all.sort((x, y) => x.due - y.due)[0] || null;
+  });
+  const today = $derived.by(() => {
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const es = app.revlog.filter((e) => e.t >= +t0);
+    return { n: es.length, min: Math.round(es.reduce((s, e) => s + (e.ms || 0), 0) / 60000) };
   });
 
-  function key(e) {
+  function onKey(e) {
     if (!r || r.away || app.editor || app.dialog) return;
-    const k = e.key.toLowerCase();
+    const kk = e.key.toLowerCase();
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (a && !r.shown) r.shown = true; else if (r.shown) answer(3); }
     else if (/^[1-4]$/.test(e.key)) answer(+e.key);
-    else if (k === 'u' || (k === 'z' && (e.ctrlKey || e.metaKey))) undo();
-    else if (k === 'e' && a) openEditor(a);
+    else if (kk === 'u' || (kk === 'z' && (e.ctrlKey || e.metaKey))) undo();
+    else if (kk === 'e' && a) openEditor(a);
     else if (e.key === 'Escape') exitReview();
   }
 </script>
 
-<svelte:window onkeydown={key} />
+<svelte:window onkeydown={onKey} />
 
 {#if r.away}
   <div class="back"><button class="btn primary" onclick={() => (r.away = false)}>← Back to review</button></div>
@@ -46,21 +53,25 @@
             <h2>{r.done ? 'Session complete' : 'Nothing due'}</h2>
             <div class="muted">
               {#if r.done}You reviewed {r.done} card{r.done === 1 ? '' : 's'}. {/if}
-              {#if soon}Next card due in {fmtIvl(Math.max(MIN, soon.card.s.due - Date.now()))}.{:else if !r.ids.length}Turn on Flashcard mode while reading to make cards.{/if}
+              Today: {today.n} review{today.n === 1 ? '' : 's'} in {today.min} min.
+              {#if soon}Next card due in {fmtIvl(Math.max(MIN, soon.due - Date.now()))}.{:else if !r.ids.length}Turn on Flashcard mode while reading to make cards.{/if}
             </div>
             <div style="margin-top:20px"><button class="btn" onclick={exitReview}>Close</button></div>
           </div>
         {:else}
           <div class="card">
-            <div>{@html sideHTML(a, 'front')}</div>
+            {#if a.card.type === 'cloze'}
+              <div>{@html cardHTML(a, key, r.shown ? 'back' : 'front')}</div>
+            {:else}
+              <div>{@html cardHTML(a, key, 'front')}</div>
+            {/if}
             {#if r.shown}
-              <hr />
-              <div>{@html sideHTML(a, 'back')}</div>
+              {#if a.card.type !== 'cloze'}<hr /><div>{@html cardHTML(a, key, 'back')}</div>{/if}
               {#if a.note?.trim()}<div class="md note">{@html md(a.note)}</div>{/if}
             {/if}
           </div>
           <div class="ctx">
-            <span>{docName(a.docId)} · p. {a.page}</span>
+            <span>{docName(a.docId)} · p. {a.page}{#if keyLabel(key)}&nbsp;· {keyLabel(key)}{/if}</span>
             <button class="link" onclick={() => openContext(a)}>Open in book</button>
             <button class="link" onclick={() => openEditor(a)}>Edit (E)</button>
           </div>
@@ -91,6 +102,8 @@
   .card{background:var(--card);border-radius:16px;border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.05);padding:30px 34px;font-size:17px;min-height:200px;user-select:text}
   .card :global(.quoteBlock){font-size:16px}
   .card :global(img){max-width:100%}
+  .card :global(.cloze){background:var(--accent-soft);color:var(--accent);border-radius:5px;padding:0 6px;font-weight:600}
+  .card :global(.cloze.shown){background:transparent;padding:0;border-bottom:2px solid var(--accent);border-radius:0;color:inherit}
   hr{border:0;border-top:1px solid var(--line);margin:24px 0}
   .note{margin-top:16px;font-size:14px;border-top:1px dashed var(--line);padding-top:10px;color:var(--muted)}
   .ctx{margin-top:12px;font-size:12.5px;display:flex;gap:12px;align-items:center;color:var(--muted);padding:0 4px}

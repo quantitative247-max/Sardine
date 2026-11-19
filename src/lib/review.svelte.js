@@ -1,45 +1,69 @@
-import { app, allCards, newLeftToday, bumpNew, saveAnno, findAnno, openDoc, ctl, title } from './state.svelte.js';
-import { grade, endOfDay, isLearning, MIN } from './sched.js';
+import { app, allCards, newLeftToday, bumpNew, saveAnno, findAnno, openDoc, ctl, title, logReview, logUndo } from './state.svelte.js';
+import { grade, endOfDay, isLearning, MIN, DAY } from './sched.js';
+import { variants, getS, setS } from './cards.js';
 
+// Review items are [docId, annoId, variantKey]; a cloze with 3 groups is 3 items.
 export function startReview(docId) {
-  const ids = allCards().filter((a) => !docId || a.docId === docId).map((a) => [a.docId, a.id]);
-  app.review = { docId, ids, cur: null, shown: false, undo: [], done: 0, newLeft: newLeftToday(), away: false };
+  const ids = allCards().filter((a) => !docId || a.docId === docId).flatMap((a) => variants(a).map((v) => [a.docId, a.id, v.key]));
+  app.review = { docId, ids, cur: null, key: null, shown: false, undo: [], done: 0, newLeft: newLeftToday(), away: false, shownAt: Date.now(), siblings: {} };
   nextCard();
 }
 
-const cards = () => app.review.ids.map(([d, i]) => findAnno(d, i)).filter((a) => a?.card);
-
-function pickNext() {
-  const now = Date.now(), c = cards();
-  const byDue = (x, y) => x.card.s.due - y.card.s.due;
-  const learnNow = c.filter((a) => isLearning(a.card.s) && a.card.s.due <= now).sort(byDue);
-  if (learnNow.length) return learnNow[0];
-  const rev = c.filter((a) => a.card.s.state === 'review' && a.card.s.due <= endOfDay()).sort(byDue);
-  if (rev.length) return rev[0];
-  if (app.review.newLeft > 0) {
-    const fresh = c.filter((a) => a.card.s.state === 'new').sort((a, b) => a.createdAt - b.createdAt);
-    if (fresh.length) return fresh[0];
+function items() {
+  const out = [];
+  for (const [d, i, k] of app.review.ids) {
+    const a = findAnno(d, i);
+    const s = a?.card && getS(a, k);
+    if (s) out.push({ a, k, s });
   }
-  return c.filter((a) => isLearning(a.card.s) && a.card.s.due <= now + 20 * MIN).sort(byDue)[0] || null;
+  return out;
 }
 
-export function nextCard() { app.review.cur = pickNext(); app.review.shown = false; }
+function pickNext() {
+  const now = Date.now(), all = items(), r = app.review;
+  const byDue = (x, y) => x.s.due - y.s.due;
+  const learnNow = all.filter((x) => isLearning(x.s) && x.s.due <= now).sort(byDue);
+  if (learnNow.length) return learnNow[0];
+  // bury siblings: don't show another group of a cloze you just saw in this session
+  const notSib = (x) => !r.siblings[x.a.id] || r.siblings[x.a.id] === x.k;
+  const rev = all.filter((x) => x.s.state === 'review' && x.s.due <= endOfDay()).sort(byDue);
+  const revPick = rev.find(notSib) || rev[0];
+  if (revPick) return revPick;
+  if (r.newLeft > 0) {
+    const fresh = all.filter((x) => x.s.state === 'new').sort((x, y) => x.a.createdAt - y.a.createdAt || x.k.localeCompare(y.k));
+    const p = fresh.find(notSib) || fresh[0];
+    if (p) return p;
+  }
+  return all.filter((x) => isLearning(x.s) && x.s.due <= now + 20 * MIN).sort(byDue)[0] || null;
+}
+
+export function nextCard() {
+  const r = app.review, p = pickNext();
+  r.cur = p ? p.a : null; r.key = p ? p.k : null; r.shown = false; r.shownAt = Date.now();
+  if (p) r.siblings[p.a.id] = p.k;
+}
 
 export function counts() {
-  const now = Date.now(), c = cards();
+  const now = Date.now(), all = items();
   return {
-    n: Math.min(app.review.newLeft, c.filter((x) => x.card.s.state === 'new').length),
-    l: c.filter((x) => isLearning(x.card.s) && x.card.s.due <= now + 20 * MIN).length,
-    r: c.filter((x) => x.card.s.state === 'review' && x.card.s.due <= endOfDay()).length,
+    n: Math.min(app.review.newLeft, all.filter((x) => x.s.state === 'new').length),
+    l: all.filter((x) => isLearning(x.s) && x.s.due <= now + 20 * MIN).length,
+    r: all.filter((x) => x.s.state === 'review' && x.s.due <= endOfDay()).length,
   };
 }
 
+export const curSched = () => (app.review?.cur ? getS(app.review.cur, app.review.key) : null);
+
 export function answer(g) {
-  const r = app.review, a = r.cur;
+  const r = app.review, a = r.cur, k = r.key;
   if (!a || !r.shown) return;
-  const prev = $state.snapshot(a.card.s), wasNew = prev.state === 'new';
-  r.undo.push({ docId: a.docId, id: a.id, prev, wasNew });
-  a.card.s = grade(prev, g);
+  const now = Date.now();
+  const prev = $state.snapshot(getS(a, k)), wasNew = prev.state === 'new';
+  const next = grade(prev, g, now);
+  setS(a, k, next);
+  const entry = { t: now, d: a.docId, a: a.id, k, g, st: prev.state, ivl: +((next.due - now) / DAY).toFixed(4), ms: Math.min(60000, now - r.shownAt) };
+  logReview(entry);
+  r.undo.push({ docId: a.docId, id: a.id, k, prev, wasNew, entry });
   if (wasNew) { r.newLeft--; bumpNew(1); }
   r.done++;
   saveAnno(a);
@@ -51,10 +75,11 @@ export function undo() {
   if (!u) return;
   const a = findAnno(u.docId, u.id);
   if (!a) return;
-  a.card.s = u.prev; r.done--;
+  setS(a, u.k, u.prev); r.done--;
   if (u.wasNew) { r.newLeft++; bumpNew(-1); }
+  logUndo(u.entry);
   saveAnno(a);
-  r.cur = a; r.shown = true;
+  r.cur = a; r.key = u.k; r.shown = true; r.shownAt = Date.now();
 }
 
 export function exitReview() { app.review = null; }

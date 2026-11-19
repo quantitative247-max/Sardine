@@ -146,6 +146,14 @@ impl Engine {
                     Err(_) => respond(404, "text/plain", b"no cover".to_vec()),
                 }
             }
+            ["media", name] => {
+                let ok = !name.is_empty() && name.len() < 80 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') && !name.starts_with('.');
+                let p = self.data_dir.join("media").join(if ok { *name } else { "invalid" });
+                match std::fs::read(p) {
+                    Ok(b) => respond(200, crate::media_mime(name), b),
+                    Err(_) => respond(404, "text/plain", b"no media".to_vec()),
+                }
+            }
             ["page", id, idx] => {
                 let id = safe_id(id).to_string();
                 let Ok(page) = idx.parse::<u16>() else { return respond(400, "text/plain", vec![]) };

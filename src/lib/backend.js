@@ -6,6 +6,7 @@ const isWin = typeof navigator !== 'undefined' && /Windows/.test(navigator.userA
 const BASE = isWin ? 'http://pdf.localhost' : 'pdf://localhost';
 
 export const pageUrl = (id, index, width, retry = 0) => `${BASE}/page/${id}/${index}?w=${width}${retry ? `&r=${retry}` : ''}`;
+export const mediaUrl = (name) => `${BASE}/media/${name}`;
 export const coverUrl = (id) => `${BASE}/cover/${id}`;
 
 export const api = {
@@ -23,5 +24,10 @@ export const api = {
   readTextFile: (path) => invoke('read_text_file', { path }),
   saveTextFile: (path, contents) => invoke('save_text_file', { path, contents }),
   dataDir: () => invoke('data_dir'),
+  revlogAppend: (lines) => invoke('revlog_append', { lines }),
+  revlogRead: () => invoke('revlog_read'),
+  saveMedia: (data, ext) => invoke('save_media', { data, ext }),
+  importMedia: (path) => invoke('import_media', { path }),
+  mediaDataUrl: (name) => invoke('media_data_url', { name }),
   startupFiles: () => invoke('startup_files'),
 };

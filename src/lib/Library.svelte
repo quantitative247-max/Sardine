@@ -5,7 +5,8 @@
   import MainMenu from './MainMenu.svelte';
   import { app, title, importPaths, openDoc, removeDoc, dueCount, toast } from './state.svelte.js';
   import { coverUrl, api } from './backend.js';
-  import { isDue } from './sched.js';
+  import { isDueS } from './sched.js';
+  import { variants } from './cards.js';
   import { startReview } from './review.svelte.js';
 
   let query = $state('');
@@ -18,11 +19,11 @@
   const due = $derived(dueCount());
 
   function stats(d) {
-    const cards = (app.annos[d.id] || []).filter((a) => a.card);
+    const vs = (app.annos[d.id] || []).flatMap(variants);
     const now = Date.now();
     return {
-      cards: cards.length,
-      due: cards.filter((a) => isDue(a, now)).length,
+      cards: vs.length,
+      due: vs.filter((v) => isDueS(v.s, now)).length,
       pct: d.numPages ? Math.round(((d.lastPage || 1) / d.numPages) * 100) : 0,
       fin: d.numPages > 1 && (d.lastPage || 1) >= d.numPages,
     };
@@ -58,6 +59,7 @@
     <button class="reviewPill" class:zero={!due} title="Review due flashcards (R)" onclick={() => startReview(null)}>
       <Icon name="cards" size={18} />Review<span class="n">{due}</span>
     </button>
+    <button class="ib" title="Statistics" onclick={() => (app.stats = true)}><Icon name="chart" /></button>
     <button class="ib" title="Menu" onclick={(e) => (mainMenu = anchorOf(e))}><Icon name="menu" /></button>
   </div>
 
@@ -109,7 +111,7 @@
 {/if}
 {#if mainMenu}<MainMenu anchor={mainMenu} onclose={() => (mainMenu = null)} />{/if}
 
-<svelte:window onkeydown={(e) => { if (!app.editor && !app.review && !app.dialog && e.key.toLowerCase() === 'r' && e.target.tagName !== 'INPUT') startReview(null); }} />
+<svelte:window onkeydown={(e) => { if (!app.editor && !app.review && !app.dialog && !app.stats && e.key.toLowerCase() === 'r' && e.target.tagName !== 'INPUT') startReview(null); }} />
 
 <style>
   .lib{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--lib)}

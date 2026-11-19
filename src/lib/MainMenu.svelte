@@ -37,6 +37,7 @@
   <button onclick={run(backup)}>Back up annotations…</button>
   <button onclick={run(restore)}>Restore from backup…<small>Also accepts backups from the HTML version</small></button>
   <div class="sep"></div>
-  <button onclick={run(() => (app.dialog = { kind: 'settings' }))}>Settings & LaTeX macros</button>
+  <button onclick={run(() => (app.stats = true))}>Statistics</button>
+  <button onclick={run(() => (app.dialog = { kind: 'settings' }))}>Settings: scheduler, LaTeX macros</button>
   <button onclick={run(() => (app.dialog = { kind: 'help' }))}>Keyboard shortcuts</button>
 </Menu>

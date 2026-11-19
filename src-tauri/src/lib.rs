@@ -57,6 +57,76 @@ fn store_prefix(e: State<Engine>, prefix: String) -> Result<HashMap<String, Stri
     Ok(out)
 }
 
+
+// ------------------------------------------------------------ review log (append-only JSONL)
+
+#[tauri::command]
+fn revlog_append(e: State<Engine>, lines: String) -> Result<(), String> {
+    use std::io::Write;
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(store_dir(&e).join("revlog.jsonl")).map_err(|x| x.to_string())?;
+    f.write_all(lines.as_bytes()).map_err(|x| x.to_string())?;
+    if !lines.ends_with('\n') { f.write_all(b"\n").map_err(|x| x.to_string())?; }
+    Ok(())
+}
+
+#[tauri::command]
+fn revlog_read(e: State<Engine>) -> String {
+    std::fs::read_to_string(store_dir(&e).join("revlog.jsonl")).unwrap_or_default()
+}
+
+// ------------------------------------------------------------ media (card images)
+
+fn media_dir(e: &Engine) -> PathBuf { e.data_dir.join("media") }
+
+fn hash_name(bytes: &[u8], ext: &str) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes { h = (h ^ *b as u64).wrapping_mul(0x100000001b3); }
+    let ext: String = ext.trim_start_matches('.').to_ascii_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).take(5).collect();
+    format!("{:016x}{:x}.{}", h, bytes.len(), if ext.is_empty() { "png".into() } else { ext })
+}
+
+fn safe_media(name: &str) -> Option<&str> {
+    if !name.is_empty() && name.len() < 80 && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '.') && !name.starts_with('.') { Some(name) } else { None }
+}
+
+/// Save pasted image bytes (base64) and return the file name.
+#[tauri::command]
+fn save_media(e: State<Engine>, data: String, ext: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.trim()).map_err(|x| x.to_string())?;
+    let name = hash_name(&bytes, &ext);
+    let p = media_dir(&e).join(&name);
+    if !p.exists() { std::fs::write(p, bytes).map_err(|x| x.to_string())?; }
+    Ok(name)
+}
+
+/// Copy an image file from disk into the media folder.
+#[tauri::command]
+fn import_media(e: State<Engine>, path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&path).map_err(|x| x.to_string())?;
+    let ext = Path::new(&path).extension().map(|x| x.to_string_lossy().to_string()).unwrap_or_default();
+    let name = hash_name(&bytes, &ext);
+    let p = media_dir(&e).join(&name);
+    if !p.exists() { std::fs::write(p, bytes).map_err(|x| x.to_string())?; }
+    Ok(name)
+}
+
+pub fn media_mime(name: &str) -> &'static str {
+    match name.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+        "jpg" | "jpeg" => "image/jpeg", "gif" => "image/gif", "webp" => "image/webp", "svg" => "image/svg+xml", "bmp" => "image/bmp", "avif" => "image/avif",
+        _ => "image/png",
+    }
+}
+
+/// Media file as a data: URL (used when exporting cards).
+#[tauri::command]
+fn media_data_url(e: State<Engine>, name: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let n = safe_media(&name).ok_or("bad name")?;
+    let bytes = std::fs::read(media_dir(&e).join(n)).map_err(|x| x.to_string())?;
+    Ok(format!("data:{};base64,{}", media_mime(n), base64::engine::general_purpose::STANDARD.encode(bytes)))
+}
+
 // ------------------------------------------------------------ library
 
 #[derive(Serialize)]
@@ -187,7 +257,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let data = app.path().app_data_dir()?;
-            for d in ["books", "covers", "store"] { std::fs::create_dir_all(data.join(d))?; }
+            for d in ["books", "covers", "store", "media"] { std::fs::create_dir_all(data.join(d))?; }
             let lib = find_pdfium(app);
             let engine = Engine::start(lib, data).map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
             app.manage(engine);
@@ -200,7 +270,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             store_get, store_set, store_remove, store_prefix,
             import_pdfs, books_present, remove_book,
-            pdf_info, pdf_text, pdf_snip, pdf_cover, save_text_file, read_text_file, data_dir, startup_files
+            pdf_info, pdf_text, pdf_snip, pdf_cover, save_text_file, read_text_file, data_dir, startup_files,
+            revlog_append, revlog_read, save_media, import_media, media_data_url
         ])
         .run(tauri::generate_context!())
         .expect("error while running Margin");

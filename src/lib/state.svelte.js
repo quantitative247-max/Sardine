@@ -1,11 +1,13 @@
 // Global app state + persistence (JSON files via Rust).
 import { api } from './backend.js';
 import { setMacros } from './md.js';
-import { newSched, isDue, todayKey } from './sched.js';
+import { newSched, isDueS, todayKey, setSchedConfig } from './sched.js';
+import { variants, syncCloze, clozeKeys } from './cards.js';
 
 export const DEFAULT_SETTINGS = {
   macros: '', newPerDay: 20, defaultSide: 'front', cardMode: false, sideOpen: true,
   theme: 'system', invertPages: true, sideTab: 'toc',
+  algorithm: 'sm2', retention: 0.9, maxIvl: 36500, fsrsWeights: '',
 };
 
 export const app = $state({
@@ -25,6 +27,8 @@ export const app = $state({
   toast: '',
   coverBust: 0,
   systemDark: false,
+  revlog: [],                // review history (loaded from revlog.jsonl)
+  stats: false,              // stats overlay open
 });
 
 // Non-reactive hooks the reader registers (goToPage, flashTo …)
@@ -59,6 +63,8 @@ export async function boot() {
   app.annos = a;
   app.present = Object.fromEntries(present.map((id) => [id, true]));
   setMacros(app.settings.macros);
+  setSchedConfig(app.settings);
+  app.revlog = parseRevlog(await api.revlogRead().catch(() => ''));
   const mq = matchMedia('(prefers-color-scheme: dark)');
   app.systemDark = mq.matches; mq.addEventListener('change', (e) => (app.systemDark = e.matches));
   app.ready = true;
@@ -147,19 +153,40 @@ export function bumpNew(d) {
   app.newcount.n = Math.max(0, app.newcount.n + d); saveNew();
 }
 export function dueCount(docId) {
-  const cards = allCards().filter((a) => !docId || a.docId === docId);
+  const vs = allCards().filter((a) => !docId || a.docId === docId).flatMap(variants);
   const now = Date.now();
-  return cards.filter((a) => isDue(a, now)).length + Math.min(cards.filter((a) => a.card.s.state === 'new').length, newLeftToday());
+  return vs.filter((v) => isDueS(v.s, now)).length + Math.min(vs.filter((v) => v.s.state === 'new').length, newLeftToday());
+}
+
+// ---------------------------------------------------------------- review log
+// entry: { t, d: docId, a: annoId, k: variant key, g: grade 1-4, st: state before, ivl: days until due after, ms: answer time }
+function parseRevlog(text) {
+  const out = [], undone = new Set();
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try { const e = JSON.parse(line); if (e.undo) undone.add(e.undo); else out.push(e); } catch {}
+  }
+  return out.filter((e) => !undone.has(e.t + ':' + e.a + ':' + e.k));
+}
+export function logReview(e) {
+  app.revlog = [...app.revlog, e];
+  api.revlogAppend(JSON.stringify(e)).catch(errToast);
+}
+export function logUndo(e) {
+  app.revlog = app.revlog.filter((x) => x !== e && !(x.t === e.t && x.a === e.a && x.k === e.k));
+  api.revlogAppend(JSON.stringify({ undo: e.t + ':' + e.a + ':' + e.k })).catch(errToast);
 }
 
 // ---------------------------------------------------------------- editor
 export function openEditor(a, opt = {}) {
   if (!a) return;
   const card = a.card || (opt.card ? { hlSide: opt.side || app.settings.defaultSide, front: '', back: '' } : null);
+  const type = card?.type || opt.type || 'basic';
   app.editor = {
     a: $state.snapshot(a), isNew: !!opt.isNew, color: a.color || 'yellow',
     side: card?.hlSide || opt.side || app.settings.defaultSide,
     cardOn: !!card, front: card?.front || '', back: card?.back || '',
+    type, clozeText: card?.text ?? (type === 'cloze' ? (a.kind === 'area' ? '' : a.text || '') : ''), extra: card?.extra || '',
     note: a.note || '', quote: a.text || '', cardTitle: opt.card,
   };
 }
@@ -168,8 +195,15 @@ export function commitEditor() {
   const a = e.a;
   if (a.kind !== 'area') a.text = e.quote.trim();
   a.note = e.note; a.color = e.color;
-  if (e.cardOn) {
-    const card = { ...(a.card || {}), hlSide: e.side, front: e.front, back: e.back };
+  if (e.cardOn && e.type === 'cloze') {
+    if (!clozeKeys(e.clozeText).length) { toast('Wrap at least one part in {{double braces}} to make a cloze'); return false; }
+    const card = { ...(a.card || {}), type: 'cloze', text: e.clozeText, extra: e.extra };
+    delete card.s;
+    syncCloze(card);
+    a.card = card;
+  } else if (e.cardOn) {
+    const card = { ...(a.card || {}), type: 'basic', hlSide: e.side, front: e.front, back: e.back };
+    delete card.cs;
     const has = (side) => card.hlSide === side || (side === 'front' ? e.front : e.back).trim();
     if (!has('front') || !has('back')) { toast('A card needs something on both the front and the back'); return false; }
     card.s ||= newSched();

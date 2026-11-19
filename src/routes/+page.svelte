@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { getCurrentWebview } from '@tauri-apps/api/webview';
-  import { app, boot, importPaths, resolvedTheme } from '$lib/state.svelte.js';
+  import { app, boot, importPaths, resolvedTheme, ctl } from '$lib/state.svelte.js';
+  import Stats from '$lib/Stats.svelte';
   import { api } from '$lib/backend.js';
   import Library from '$lib/Library.svelte';
   import Reader from '$lib/Reader.svelte';
@@ -20,7 +21,9 @@
       else if (t === 'leave') dragging = false;
       else if (t === 'drop') {
         dragging = false;
-        const pdfs = (ev.payload.paths || []).filter((p) => /\.pdf$/i.test(p));
+        const paths = ev.payload.paths || [];
+        if (app.editor && ctl.editorDropImages) { ctl.editorDropImages(paths); return; }
+        const pdfs = paths.filter((p) => /\.pdf$/i.test(p));
         if (pdfs.length) importPaths(pdfs, app.view === 'reader' && pdfs.length === 1);
       }
     }).then((f) => (un = f));
@@ -40,6 +43,7 @@
   {:else}
     <Library />
   {/if}
+  {#if app.stats}<Stats />{/if}
   {#if app.review}<Review />{/if}
   {#if app.editor}<Editor />{/if}
   <Dialogs />

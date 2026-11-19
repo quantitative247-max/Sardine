@@ -179,7 +179,7 @@
         return;
       }
       pending = info;
-      const r = info.anchor, w = cardMode ? 300 : 330, h = 40;
+      const r = info.anchor, w = cardMode ? 380 : 330, h = 40;
       const x = Math.min(innerWidth - w - 8, Math.max(8, r.right - w / 2));
       let y = r.bottom + 8; if (y + h > innerHeight - 66) y = r.top - h - 8;
       pop = { x, y };
@@ -191,6 +191,7 @@
     const a = makeAnno(app.docId, { kind: 'text', text: info.text, rects: info.rects, color: color || app.lastColor || 'yellow' });
     pop = null; pending = null; getSelection().removeAllRanges();
     if (color) { app.lastColor = color; saveAnno(a); toast('Highlighted'); return; }
+    if (act === 'cloze') return openEditor(a, { isNew: true, card: true, type: 'cloze' });
     if (act === 'as-front' || act === 'as-back') return openEditor(a, { isNew: true, card: true, side: act === 'as-front' ? 'front' : 'back' });
     openEditor(a, { isNew: true, card: act === 'card' });
   }
@@ -223,11 +224,11 @@
 
   // ------------------------------------------------ keyboard
   function onKey(e) {
-    if (app.editor || app.dialog || (app.review && !app.review.away) || menuAnchor) return;
+    if (app.editor || app.dialog || app.stats || (app.review && !app.review.away) || menuAnchor) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
     if (pop && pending && !e.ctrlKey && !e.metaKey) {
-      const act = cardMode ? { f: 'as-front', b: 'as-back', n: 'note', h: 'hl' }[k] : { n: 'note', c: 'card' }[k];
+      const act = cardMode ? { f: 'as-front', b: 'as-back', c: 'cloze', n: 'note', h: 'hl' }[k] : { n: 'note', c: 'card' }[k];
       const col = !cardMode ? { 1: 'yellow', 2: 'green', 3: 'blue', 4: 'pink' }[k] : act === 'hl' ? 'yellow' : null;
       if (act || col) { e.preventDefault(); popAction(act === 'hl' ? null : act, col); return; }
     }
@@ -321,6 +322,7 @@
       <span class="lab">Card</span>
       <button class="cb" title="Highlight on the front — you recall the answer (F)" onclick={() => popAction('as-front')}>As front</button>
       <button class="cb" title="Highlight on the back — you recall the passage (B)" onclick={() => popAction('as-back')}>As back</button>
+      <button class="cb" title="Turn the passage into a cloze — hide key words (C)" onclick={() => popAction('cloze')}>Cloze</button>
       <span class="psep"></span>
       <button title="Just highlight (H)" onclick={() => popAction(null, 'yellow')}><Icon name="highlighter" size={16} /></button>
       <button title="Note (N)" onclick={() => popAction('note')}><Icon name="pen" size={16} /></button>

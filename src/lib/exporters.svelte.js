@@ -28,7 +28,7 @@ const imgsToHtml = (t) => t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, src)
 const imgsToMd = (t) => t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, src) => `![${alt}](${mediaSrc(src)})`);
 const conv = (t) => esc(toAnkiMath(imgsToHtml(t || ''))).replace(/\u0003([^\u0003]*)\u0003/g, '<img src="$1">').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
 
-/** Mochi/Margin cloze → Anki cloze: {{2::x::hint}} → {{c2::x::hint}}; unnumbered → one shared number. */
+/** Mochi-style cloze → Anki cloze: {{2::x::hint}} → {{c2::x::hint}}; unnumbered → one shared number. */
 function toAnkiCloze(text) {
   const cl = parseClozes(text);
   const used = cl.map((c) => c.group).filter(Boolean);
@@ -104,17 +104,17 @@ export async function exportMarkdown(docId) {
 
 export async function backup() {
   const docs = Object.values($state.snapshot(app.docs));
-  const data = { app: 'margin', version: 3, exportedAt: new Date().toISOString(), settings: $state.snapshot(app.settings), docs, annotations: Object.values($state.snapshot(app.annos)).flat() };
-  if (await saveAs(`margin-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data), 'json', 'Margin backup')) toast('Backup saved');
+  const data = { app: 'sardine', version: 3, exportedAt: new Date().toISOString(), settings: $state.snapshot(app.settings), docs, annotations: Object.values($state.snapshot(app.annos)).flat() };
+  if (await saveAs(`sardine-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data), 'json', 'Sardine backup')) toast('Backup saved');
 }
 
 /** Restore a backup — also accepts backups from the single-file HTML version. */
 export async function restore() {
-  const path = await open({ multiple: false, filters: [{ name: 'Margin backup', extensions: ['json'] }] });
+  const path = await open({ multiple: false, filters: [{ name: 'Sardine backup', extensions: ['json'] }] });
   if (!path) return;
   try {
     const data = JSON.parse(await api.readTextFile(path));
-    if (data.app !== 'margin') throw new Error('Not a Margin backup');
+    if (data.app !== 'sardine' && data.app !== 'margin') throw new Error('Not a Sardine backup');
     for (const d of data.docs || []) {
       const { cover, ...meta } = d;
       const cur = app.docs[meta.id];

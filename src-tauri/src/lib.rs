@@ -229,7 +229,7 @@ fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| e.to_string())
 }
 
-/// PDFs passed on the command line (e.g. "Open with Margin").
+/// PDFs passed on the command line (e.g. "Open with Sardine").
 #[tauri::command]
 fn startup_files() -> Vec<String> {
     std::env::args().skip(1).filter(|a| a.to_lowercase().ends_with(".pdf") && Path::new(a).exists()).collect()
@@ -274,5 +274,5 @@ pub fn run() {
             revlog_append, revlog_read, save_media, import_media, media_data_url
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Margin");
+        .expect("error while running Sardine");
 }

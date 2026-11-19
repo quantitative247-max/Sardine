@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/banner.png" alt="Margin: a PDF reader for textbooks with LaTeX notes and spaced-repetition cards" width="800">
+  <img src="docs/banner.png" alt="Sardine: a PDF reader for textbooks with LaTeX notes and spaced-repetition cards" width="800">
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@ A PDF reader for textbooks with highlights, LaTeX notes, and spaced-repetition f
 - **Rust backend** (`src-tauri/`): renders pages with pdfium (`pdfium-render`) on a dedicated worker thread and streams them to the UI through a `pdf://` protocol. It also extracts the text geometry used for selection, plus the outline, metadata, covers and region snips. Books are copied into the app's data folder, and notes, cards and settings are stored as JSON files there.
 - **Svelte frontend** (`src/`): the library, the reader (contents / notes / bookmarks sidebar and page bar), Flashcard mode, the card editor with live KaTeX preview, review, and the light / sepia / dark themes.
 
-Data lives in `%APPDATA%\com.quant.margin\` on Windows (`books\`, `covers\`, `store\*.json`). Settings ▸ shows the exact path.
+Data lives in `%APPDATA%\com.quant.margin\` on Windows (`books\`, `covers\`, `store\*.json`). The folder keeps the app's original name, Margin, so existing notes carry over. Settings ▸ shows the exact path.
 
 ## Get the Windows installer without installing anything (GitHub Actions)
 
@@ -22,13 +22,13 @@ Data lives in `%APPDATA%\com.quant.margin\` on Windows (`books\`, `covers\`, `st
    ```
    git init
    git add .
-   git commit -m "Margin"
+   git commit -m "Sardine"
    git branch -M main
    git remote add origin https://github.com/<you>/margin.git
    git push -u origin main
    ```
 2. On GitHub, open **Actions ▸ Build Windows app**. The first build takes about 10–15 minutes.
-3. When it's green, open the run and download **Margin-windows** under *Artifacts*. Unzip it and run `Margin_0.1.0_x64-setup.exe`.
+3. When it's green, open the run and download **Sardine-windows** under *Artifacts*. Unzip it and run `Sardine_0.1.0_x64-setup.exe`.
    - Windows SmartScreen will warn because the app isn't code-signed. Click **More info ▸ Run anyway**.
 4. To publish a proper release, tag it: `git tag v0.1.0 && git push --tags`. The installer is attached to a GitHub Release.
 

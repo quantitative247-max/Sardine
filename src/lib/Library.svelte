@@ -103,10 +103,10 @@
 {#if menu}
   <Menu anchor={menu.anchor} align="left" onclose={() => (menu = null)}>
     {@const id = menu.id}
-    <button onclick={() => { menu = null; onBook(app.docs[id]); }}>{app.present[id] ? 'Open' : 'Locate file…'}</button>
-    <button onclick={() => { menu = null; startReview(id); }}>Review this book's cards</button>
+    <button onclick={() => { const x = id; menu = null; onBook(app.docs[x]); }}>{app.present[id] ? 'Open' : 'Locate file…'}</button>
+    <button onclick={() => { const x = id; menu = null; startReview(x); }}>Review this book's cards</button>
     <div class="sep"></div>
-    <button style="color:var(--danger)" onclick={() => { menu = null; removeDoc(id); }}>Remove from library</button>
+    <button style="color:var(--danger)" onclick={() => { const x = id; menu = null; removeDoc(x); }}>Remove from library</button>
   </Menu>
 {/if}
 {#if mainMenu}<MainMenu anchor={mainMenu} onclose={() => (mainMenu = null)} />{/if}

@@ -19,6 +19,27 @@ Video Reference: https://www.youtube.com/watch?v=OFuu4pesKf0
 
 Data lives in `%APPDATA%\com.quant.margin\` on Windows (`books\`, `covers\`, `store\*.json`). The folder keeps the app's original name, Margin, so existing notes carry over. Settings ▸ shows the exact path.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/stats.png" alt="Statistics: yearly review heatmap, streak, cards learned, reviews, retention, review time, forecast, intervals, answer buttons, card counts and per-book progress" width="900">
+  <br><sub>Statistics after about five months of daily study. This review history is simulated with the app's own SM-2 scheduler, to show what the page looks like with real use.</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/library.png" alt="Library with book covers, reading progress and card counts"><br><sub><b>Library</b>: covers, reading progress, and how many cards are due</sub></td>
+    <td width="50%"><img src="docs/screenshots/reader.png" alt="Reader with a highlight popup and the notes sidebar"><br><sub><b>Reader</b>: select text to highlight it, add a note, or make a card</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/editor.png" alt="Card editor with LaTeX preview"><br><sub><b>Card editor</b>: front/back or cloze cards, with live LaTeX preview</sub></td>
+    <td width="50%"><img src="docs/screenshots/review.png" alt="Reviewing a card with Again, Hard, Good and Easy buttons"><br><sub><b>Review</b>: grade each card; <i>Open in book</i> jumps back to the page it came from</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/reader-dark.png" alt="Reader in dark mode with inverted pages"><br><sub><b>Dark mode</b>, with the pages inverted to match</sub></td>
+  </tr>
+</table>
+
 ## Get the Windows installer without installing anything (GitHub Actions)
 
 1. Create a new **empty** GitHub repository and push this folder to it:

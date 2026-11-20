@@ -11,7 +11,7 @@
 
 A PDF reader for textbooks with highlights, LaTeX notes, and spaced-repetition flashcards. It's a desktop app for Windows, built with Tauri (Rust + Svelte).
 
-Inspired by "orbit" but for Windows by Andy Matuschak. combine pdf annotation with Spaced repetition  like Anki.
+Inspired by "orbit" but for Windows by Andy Matuschak. combine pdf annotation with Spaced repetition  like Anki. UI/UX is a copy of readest.
 Video Reference: https://www.youtube.com/watch?v=OFuu4pesKf0
 
 - **Rust backend** (`src-tauri/`): renders pages with pdfium (`pdfium-render`) on a dedicated worker thread and streams them to the UI through a `pdf://` protocol. It also extracts the text geometry used for selection, plus the outline, metadata, covers and region snips. Books are copied into the app's data folder, and notes, cards and settings are stored as JSON files there.

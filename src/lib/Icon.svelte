@@ -8,6 +8,8 @@
     library: '<path d="M5 4v16M9.5 4v16M14 5l4.5 15"/>',
     bookmark: '<path d="M6.5 3.5h11v17l-5.5-4-5.5 4z"/>',
     highlighter: '<path d="M9 11l-5.5 5.5V20h7.5l2.5-2.5"/><path d="M20.5 9.5l-5 5a1.8 1.8 0 0 1-2.5 0L9.5 11a1.8 1.8 0 0 1 0-2.5l5-5"/>',
+    expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+    shrink: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
     crop: '<path d="M6 2.5V16a2 2 0 0 0 2 2h13.5"/><path d="M18 21.5V8a2 2 0 0 0-2-2H2.5"/>',
     cards: '<rect x="3" y="7" width="13" height="14" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v12"/>',
     review: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 3.5v5h5"/><path d="M10.5 9l4.5 3-4.5 3z"/>',

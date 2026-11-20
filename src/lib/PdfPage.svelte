@@ -13,6 +13,9 @@
     return runs;
   }
   let mctx;
+  // Text layer (pdf.js-style): every visible char lives in an absolutely-positioned span; the
+  // separating space is kept *inside* the span and <br>s are absolute too, so no stray text
+  // node lands in normal flow (those painted big selection blocks in odd places).
   function buildText(node, runs, W, H) {
     mctx ||= document.createElement('canvas').getContext('2d');
     let html = '';
@@ -21,9 +24,9 @@
       if (fs < 1 || !r.t) continue;
       mctx.font = `${fs}px sans-serif`;
       const mw = mctx.measureText(r.t).width || 1;
-      html += `<span style="left:${(r.x * W).toFixed(1)}px;top:${(r.y * H).toFixed(1)}px;font-size:${fs.toFixed(2)}px;transform:scaleX(${((r.w * W) / mw).toFixed(4)})">${esc(r.t)}</span>${r.eol ? '<br>' : ' '}`;
+      html += `<span style="left:${(r.x * W).toFixed(1)}px;top:${(r.y * H).toFixed(1)}px;font-size:${fs.toFixed(2)}px;transform:scaleX(${((r.w * W) / mw).toFixed(4)})">${esc(r.t)}${r.eol ? '' : ' '}</span>${r.eol ? '<br>' : ''}`;
     }
-    node.innerHTML = html;
+    node.innerHTML = html + '<div class="eoc"></div>';
   }
 </script>
 
@@ -94,8 +97,12 @@
   @keyframes flash{0%{opacity:1;box-shadow:0 0 0 4px currentColor}100%{opacity:var(--hl-op);box-shadow:0 0 0 0 transparent}}
   .tl{position:absolute;inset:0;z-index:2;overflow:hidden;line-height:1;user-select:text;-webkit-user-select:text}
   .tl :global(span){position:absolute;white-space:pre;color:transparent;transform-origin:0 0;font-family:sans-serif;cursor:text}
-  .tl :global(br){user-select:text}
-  .tl :global(::selection){background:rgba(47,124,246,.3)}
+  .tl{cursor:var(--box-cursor)}
+  .tl :global(br){position:absolute;user-select:text}
+  .tl :global(br::selection){background:transparent}
+  .tl :global(span::selection){background:rgba(47,124,246,.32)}
+  .tl :global(.eoc){position:absolute;left:0;top:100%;right:0;bottom:0;z-index:-1;user-select:none;-webkit-user-select:none;cursor:var(--box-cursor)}
+  :global(.selecting) .tl :global(.eoc){top:0}
   .mk-layer{position:absolute;inset:0;z-index:3;pointer-events:none}
   .marker{pointer-events:auto;position:absolute;right:-34px;width:24px;height:24px;border-radius:7px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.12);color:var(--muted)}
   .marker.card{color:var(--accent)}

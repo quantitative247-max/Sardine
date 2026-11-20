@@ -7,6 +7,7 @@
   import { app, ctl, title, saveDocs, saveSettings, closeDoc, makeAnno, saveAnno, openEditor, toast, dueCount, resolvedTheme } from './state.svelte.js';
   import { api } from './backend.js';
   import { startReview } from './review.svelte.js';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
 
   const doc = $derived(app.docs[app.docId]);
   const sizes = $derived(app.info?.sizes || []);
@@ -79,7 +80,7 @@
   }
   let saveT, raf;
   function onScroll() {
-    pop = null;
+    pop = null; if (boxSel) boxSel = null;
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = null;
@@ -108,6 +109,52 @@
     if (doc) { doc.scale = scale; saveDocs(); }
     tick().then(() => { const e2 = pageEls()[n - 1]; if (e2) viewer.scrollTop = e2.offsetTop + f * e2.offsetHeight; });
   }
+  // Ctrl+wheel and touchpad pinch (Windows reports a pinch as wheel events with ctrlKey set).
+  // The pages are scaled with a CSS transform while the gesture runs, and re-rendered at the
+  // new size once it pauses, keeping the point under the cursor fixed.
+  let pinch = null, pinchT;
+  function onWheel(e) {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    pop = null; boxSel = null;
+    const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    if (!pinch) {
+      const pr = pagesEl.getBoundingClientRect();
+      const el = [...pageEls()].find((p) => { const r = p.getBoundingClientRect(); return e.clientY >= r.top && e.clientY <= r.bottom + 16; }) || pageEls()[currentPage() - 1];
+      const r = el.getBoundingClientRect(), vr = viewer.getBoundingClientRect();
+      pinch = { k: 1, el, fx: (e.clientX - r.left) / r.width, fy: (e.clientY - r.top) / r.height, cx: e.clientX - vr.left, cy: e.clientY - vr.top };
+      pagesEl.style.transformOrigin = `${e.clientX - pr.left}px ${e.clientY - pr.top}px`;
+    }
+    const k = Math.min(5 / scale, Math.max(0.4 / scale, pinch.k * Math.exp(-Math.max(-60, Math.min(60, dy)) * 0.003)));
+    pinch.k = k;
+    pagesEl.style.transform = `scale(${k})`;
+    clearTimeout(pinchT); pinchT = setTimeout(commitPinch, 160);
+  }
+  function commitPinch() {
+    const p = pinch; pinch = null; if (!p) return;
+    const n = +p.el.dataset.i;
+    scale = Math.min(5, Math.max(0.4, scale * p.k));
+    if (doc) { doc.scale = scale; saveDocs(); }
+    tick().then(() => {
+      pagesEl.style.transform = ''; pagesEl.style.transformOrigin = '';
+      const el = pageEls()[n]; if (!el) return;
+      viewer.scrollTop = el.offsetTop + p.fy * el.offsetHeight - p.cy;
+      viewer.scrollLeft = el.offsetLeft + p.fx * el.offsetWidth - p.cx;
+    });
+  }
+  $effect(() => {
+    if (!viewer) return;
+    viewer.addEventListener('wheel', onWheel, { passive: false });
+    return () => viewer.removeEventListener('wheel', onWheel);
+  });
+
+  // ------------------------------------------------ fullscreen
+  let fullscreen = $state(false);
+  async function toggleFullscreen() {
+    try { const w = getCurrentWindow(); fullscreen = !(await w.isFullscreen()); await w.setFullscreen(fullscreen); }
+    catch (err) { toast('Fullscreen failed: ' + err); }
+  }
+
   const fitWidth = () => sizes[0] && setScale((viewer.clientWidth - 110) / sizes[0][0]);
   const zoom = (d) => (d === 0 ? fitWidth() : setScale(scale * (d > 0 ? 1.15 : 1 / 1.15)));
 
@@ -164,7 +211,8 @@
     return { text, rects, anchor: { left: last.left, right: last.right, top: last.top, bottom: last.bottom } };
   }
   function onMouseUp(e) {
-    if (tool !== 'select' || e.button !== 0) return;
+    endSelecting();
+    if (tool !== 'select' || e.button !== 0 || boxed) { boxed = false; return; }
     setTimeout(() => {
       const info = selectionInfo();
       if (!info) {
@@ -178,18 +226,98 @@
         }
         return;
       }
-      pending = info;
-      const r = info.anchor, w = cardMode ? 380 : 330, h = 40;
-      const x = Math.min(innerWidth - w - 8, Math.max(8, r.right - w / 2));
-      let y = r.bottom + 8; if (y + h > innerHeight - 66) y = r.top - h - 8;
-      pop = { x, y };
+      showPop(info);
     }, 0);
+  }
+  function showPop(info) {
+    pending = info;
+    const r = info.anchor, w = cardMode ? 380 : 330, h = 40;
+    const x = Math.min(innerWidth - w - 8, Math.max(8, r.right - w / 2));
+    let y = r.bottom + 8; if (y + h > innerHeight - 66) y = r.top - h - 8;
+    pop = { x, y };
+  }
+
+  // ------------------------------------------------ text drag: keep the selection sane over gaps
+  // While dragging, the page's end-of-content block (behind the spans) fills the page and is moved
+  // to sit right after the span under the selection focus, so hovering a blank gap extends the
+  // selection to the nearest text instead of jumping to the end of the page (pdf.js technique).
+  let selecting = false;
+  function startSelecting() { selecting = true; viewer.classList.add('selecting'); }
+  function endSelecting() {
+    if (!selecting) return;
+    selecting = false; viewer.classList.remove('selecting');
+    pagesEl.querySelectorAll('.tl').forEach((tl) => { const eoc = tl.querySelector(':scope > .eoc'); if (eoc && tl.lastChild !== eoc) tl.append(eoc); });
+  }
+  function onSelChange() {
+    if (!selecting) return;
+    const sel = getSelection(); if (!sel?.rangeCount) return;
+    let n = sel.focusNode; if (n?.nodeType === 3) n = n.parentNode;
+    const span = n?.closest?.('.tl > span'); if (!span) return;
+    const eoc = span.parentNode.querySelector(':scope > .eoc');
+    if (eoc && span.nextSibling !== eoc) span.after(eoc);
+  }
+
+  // ------------------------------------------------ box text selection (PDF-XChange style)
+  // Dragging from blank page space draws a box; the text whose characters fall inside it is selected.
+  let boxed = false;
+  let boxSel = $state(null);          // client rects painted as the selection
+  function collectBox(pg, box) {
+    const b = pg.getBoundingClientRect(), i = +pg.dataset.i;
+    const inside = (cx, cy) => cx >= box.left && cx <= box.right && cy >= box.top && cy <= box.bottom;
+    const range = document.createRange();
+    const lines = [], raw = [], paint = [];
+    for (const span of pg.querySelectorAll('.tl > span')) {
+      const sr = span.getBoundingClientRect();
+      if (sr.right < box.left || sr.left > box.right || sr.bottom < box.top || sr.top > box.bottom) continue;
+      const tn = span.firstChild; if (!tn || tn.nodeType !== 3) continue;
+      const t = tn.data; let piece = '', lo = null, hi = null;
+      for (let k = 0; k < t.length; k++) {
+        range.setStart(tn, k); range.setEnd(tn, k + 1);
+        const cr = range.getBoundingClientRect();
+        if (cr.width <= 0 || !inside(cr.left + cr.width / 2, cr.top + cr.height / 2)) continue;
+        piece += t[k];
+        lo = lo ? { l: Math.min(lo.l, cr.left), t: Math.min(lo.t, cr.top) } : { l: cr.left, t: cr.top };
+        hi = hi ? { r: Math.max(hi.r, cr.right), b: Math.max(hi.b, cr.bottom) } : { r: cr.right, b: cr.bottom };
+      }
+      if (!piece.trim()) continue;
+      const rr = { left: lo.l, top: lo.t, right: hi.r, bottom: hi.b };
+      paint.push(rr);
+      raw.push({ p: i, x: (rr.left - b.left) / b.width, y: (rr.top - b.top) / b.height, w: (rr.right - rr.left) / b.width, h: (rr.bottom - rr.top) / b.height });
+      const prev = lines[lines.length - 1];
+      if (prev && Math.abs(prev.y - rr.top) < (rr.bottom - rr.top) * 0.5) prev.t += piece; else lines.push({ y: rr.top, t: piece });
+    }
+    const text = lines.map((l) => l.t.trim()).join('\n').replace(/­/g, '').replace(/-\s*\n\s*(?=[a-z])/g, '').replace(/\s*\n\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (!text) return null;
+    const last = paint[paint.length - 1];
+    return { info: { text, rects: mergeRects(raw), anchor: last }, paint };
+  }
+  function startBox(e, pg) {
+    const b = pg.getBoundingClientRect();
+    const x0 = e.clientX, y0 = e.clientY;
+    let moved = false;
+    const move = (ev) => {
+      const x = Math.max(b.left, Math.min(b.right, ev.clientX)), y = Math.max(b.top, Math.min(b.bottom, ev.clientY));
+      if (!moved && Math.hypot(x - x0, y - y0) < 4) return;
+      moved = true;
+      snipBox = { left: Math.min(x, x0), top: Math.min(y, y0), w: Math.abs(x - x0), h: Math.abs(y - y0), text: true };
+    };
+    const up = () => {
+      removeEventListener('mousemove', move); removeEventListener('mouseup', up, true);
+      const s = snipBox; snipBox = null;
+      if (!moved || !s) return;                 // a plain click — let onMouseUp handle highlight clicks
+      boxed = true;
+      const r = collectBox(pg, { left: s.left, top: s.top, right: s.left + s.w, bottom: s.top + s.h });
+      if (!r) { toast('No text in that box — press S to snip it as an image'); return; }
+      boxSel = r.paint;
+      showPop(r.info);
+    };
+    addEventListener('mousemove', move); addEventListener('mouseup', up, true);
   }
   async function popAction(act, color) {
     const info = pending; if (!info) return;
     if (act === 'copy') { try { await navigator.clipboard.writeText(info.text); toast('Copied'); } catch { toast('Copy blocked'); } return; }
     const a = makeAnno(app.docId, { kind: 'text', text: info.text, rects: info.rects, color: color || app.lastColor || 'yellow' });
-    pop = null; pending = null; getSelection().removeAllRanges();
+    pop = null; pending = null; boxSel = null; getSelection().removeAllRanges();
     if (color) { app.lastColor = color; saveAnno(a); toast('Highlighted'); return; }
     if (act === 'cloze') return openEditor(a, { isNew: true, card: true, type: 'cloze' });
     if (act === 'as-front' || act === 'as-back') return openEditor(a, { isNew: true, card: true, side: act === 'as-front' ? 'front' : 'back' });
@@ -199,7 +327,16 @@
   // ------------------------------------------------ snip
   let snipBox = $state(null);
   function onMouseDown(e) {
-    const layer = e.target.closest?.('.snip-layer'); if (!layer || e.button !== 0) return;
+    if (e.button !== 0) return;
+    if (tool === 'select') {
+      boxSel = null;
+      if (e.target.closest?.('.marker')) return;
+      if (e.target.matches?.('.tl > span')) { startSelecting(); return; }
+      const pg = e.target.closest?.('.page');
+      if (pg) { e.preventDefault(); getSelection().removeAllRanges(); pop = null; viewer.focus({ preventScroll: true }); startBox(e, pg); }
+      return;
+    }
+    const layer = e.target.closest?.('.snip-layer'); if (!layer) return;
     e.preventDefault();
     const pg = layer.closest('.page'), i = +pg.dataset.i, b = pg.getBoundingClientRect();
     const x0 = e.clientX - b.left, y0 = e.clientY - b.top;
@@ -235,6 +372,7 @@
     if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoom(1); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); zoom(-1); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === '0') { e.preventDefault(); zoom(0); return; }
+    if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
     if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); histMove(-1); return; }
     if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); histMove(1); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -245,7 +383,10 @@
     else if (k === 'b') toggleBookmark();
     else if (k === 't') setSide(!app.settings.sideOpen);
     else if (k === 'd') toggleDark();
-    else if (e.key === 'Escape') { setTool('select'); pop = null; getSelection().removeAllRanges(); }
+    else if (e.key === 'Escape') {
+      if (fullscreen && !pop && tool === 'select' && getSelection().isCollapsed) { toggleFullscreen(); return; }
+      setTool('select'); pop = null; boxSel = null; getSelection().removeAllRanges();
+    }
     else if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); goToPage(currentPage() + 1, 0, false); }
     else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); goToPage(currentPage() - 1, 0, false); }
     else if (e.key === 'Home') { e.preventDefault(); goToPage(1); }
@@ -254,7 +395,8 @@
   const anchorOf = (e) => e.currentTarget.getBoundingClientRect();
 </script>
 
-<svelte:window onkeydown={onKey} onresize={() => (pop = null)} />
+<svelte:window onkeydown={onKey} onresize={() => { pop = null; boxSel = null; }} />
+<svelte:document onselectionchange={onSelChange} />
 
 <div class="reader" class:snipping={tool === 'snip'}>
   {#if app.settings.sideOpen}<Sidebar onclose={() => setSide(false)} />{/if}
@@ -277,6 +419,7 @@
       <button class="ib" title="Review due cards (R)" onclick={() => startReview(null)}>
         <Icon name="review" />{#if due}<span class="dot">{due > 99 ? '99+' : due}</span>{/if}
       </button>
+      <button class="ib" title={fullscreen ? 'Exit full screen (F11)' : 'Full screen (F11)'} onclick={toggleFullscreen}><Icon name={fullscreen ? 'shrink' : 'expand'} /></button>
       <button class="ib" title="Dark mode (D)" onclick={toggleDark}><Icon name={resolvedTheme() === 'dark' ? 'sun' : 'moon'} /></button>
       <button class="ib" title="Menu" onclick={(e) => (menuAnchor = anchorOf(e))}><Icon name="menu" /></button>
     </div>
@@ -338,7 +481,8 @@
     <button title="Copy" onclick={() => popAction('copy')}><Icon name="copy" size={16} /></button>
   </div>
 {/if}
-{#if snipBox}<div class="snipBox" style="left:{snipBox.left}px;top:{snipBox.top}px;width:{snipBox.w}px;height:{snipBox.h}px"></div>{/if}
+{#if boxSel}{#each boxSel as r}<div class="boxSel" style="left:{r.left}px;top:{r.top}px;width:{r.right - r.left}px;height:{r.bottom - r.top}px"></div>{/each}{/if}
+{#if snipBox}<div class="snipBox" class:text={snipBox.text} style="left:{snipBox.left}px;top:{snipBox.top}px;width:{snipBox.w}px;height:{snipBox.h}px"></div>{/if}
 {#if menuAnchor}<MainMenu anchor={menuAnchor} onclose={() => (menuAnchor = null)} {zoom} />{/if}
 
 <style>
@@ -356,7 +500,9 @@
   .mode.on{color:var(--accent);background:var(--accent-soft)}
   .mode.on .sw{background:var(--accent)}
   .mode.on .sw::after{left:14px}
-  .viewer{flex:1;overflow:auto;position:relative;background:var(--viewer);outline:none}
+  .viewer{flex:1;overflow:auto;position:relative;background:var(--viewer);outline:none;
+    --box-cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cg fill='none' stroke-linecap='square'%3E%3Cpath stroke='white' stroke-width='3' d='M8 1v5M8 10v5M1 8h5M10 8h5M17 13v8M15 13h4M15 21h4'/%3E%3Cpath stroke='black' stroke-width='1' d='M8 1v5M8 10v5M1 8h5M10 8h5M17 13v8M15 13h4M15 21h4'/%3E%3C/g%3E%3C/svg%3E") 8 8, crosshair}
+  .pages{transform-origin:0 0}
   .pages{padding:16px 44px 50vh}
   .bot{height:58px;display:flex;align-items:center;padding:0 14px;gap:2px;background:var(--paper);border-top:1px solid var(--line)}
   .pageLbl{min-width:96px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums;border-radius:6px;padding:4px 6px}
@@ -374,6 +520,8 @@
   .pop .cb{background:#ffffff14;font-weight:600}
   .pop .cb:hover{background:var(--accent)}
   .lab{font-size:11px;color:#ffffff90;padding:0 4px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+  .boxSel{position:fixed;background:rgba(47,124,246,.32);z-index:15;pointer-events:none;border-radius:1px}
+  .snipBox.text{border:1px dashed var(--accent);background:color-mix(in srgb,var(--accent) 6%,transparent)}
   .snipBox{position:fixed;border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);z-index:30;pointer-events:none}
   @media (max-width:900px){ .title{display:none} .mode .tx{display:none} }
 </style>

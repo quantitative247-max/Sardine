@@ -107,7 +107,7 @@
       <header><h2>Keyboard shortcuts</h2></header>
       <div class="body" style="line-height:2">
         <b>Reading</b><br />
-        <kbd>←</kbd> <kbd>→</kbd> page · <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> back/forward · <kbd>Ctrl</kbd>+<kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd> zoom · <kbd>B</kbd> bookmark · <kbd>T</kbd> sidebar · <kbd>D</kbd> dark mode<br />
+        <kbd>←</kbd> <kbd>→</kbd> page · <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> back/forward · <kbd>Ctrl</kbd>+<kbd>+</kbd>/<kbd>−</kbd>/<kbd>0</kbd>, <kbd>Ctrl</kbd>+scroll or pinch zoom · <kbd>F11</kbd> full screen · drag on blank space to box-select text · <kbd>B</kbd> bookmark · <kbd>T</kbd> sidebar · <kbd>D</kbd> dark mode<br />
         <kbd>V</kbd> highlight tool · <kbd>S</kbd> snip tool · <kbd>F</kbd> flashcard mode · <kbd>R</kbd> review<br />
         <b>After selecting text</b><br />
         <kbd>1</kbd>–<kbd>4</kbd> colour · <kbd>N</kbd> note · <kbd>C</kbd> card — in flashcard mode: <kbd>F</kbd> as front · <kbd>B</kbd> as back · <kbd>C</kbd> cloze · <kbd>H</kbd> highlight<br />

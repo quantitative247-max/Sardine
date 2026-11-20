@@ -28,17 +28,22 @@ Data lives in `%APPDATA%\com.quant.margin\` on Windows (`books\`, `covers\`, `st
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/library.png" alt="Library with book covers, reading progress and card counts"><br><sub><b>Library</b>: covers, reading progress, and how many cards are due</sub></td>
-    <td width="50%"><img src="docs/screenshots/reader.png" alt="Reader with a highlight popup and the notes sidebar"><br><sub><b>Reader</b>: select text to highlight it, add a note, or make a card</sub></td>
+    <td colspan="2"><img src="docs/screenshots/library.png" alt="Library with book covers, reading progress and card counts"><br><sub><b>Library</b>: covers, reading progress, and how many cards are due</sub></td>
   </tr>
   <tr>
+    <td width="50%"><img src="docs/screenshots/reader.png" alt="Reader with a highlight popup and the table of contents"><br><sub><b>Reader</b>: select text to highlight it, add a note, or make a card</sub></td>
     <td width="50%"><img src="docs/screenshots/editor.png" alt="Card editor with LaTeX preview"><br><sub><b>Card editor</b>: front/back or cloze cards, with live LaTeX preview</sub></td>
-    <td width="50%"><img src="docs/screenshots/review.png" alt="Reviewing a card with Again, Hard, Good and Easy buttons"><br><sub><b>Review</b>: grade each card; <i>Open in book</i> jumps back to the page it came from</sub></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/reader-dark.png" alt="Reader in dark mode with inverted pages"><br><sub><b>Dark mode</b>, with the pages inverted to match</sub></td>
+    <td width="50%"><img src="docs/screenshots/review.png" alt="Reviewing a card with Again, Hard, Good and Easy buttons"><br><sub><b>Review</b>: grade each card; <i>Open in book</i> jumps back to the page it came from</sub></td>
+    <td width="50%"><img src="docs/screenshots/reader-dark.png" alt="Reader in dark mode with dark pages"><br><sub><b>Dark mode</b>, with the pages darkened to match</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/reader-sepia.png" alt="Sepia theme with the menu open: themes, zoom, Anki and Mochi export, backups, statistics and settings"><br><sub><b>Sepia theme</b> and the menu: themes, zoom, export to Anki / Mochi / Markdown, backups, statistics, scheduler settings</sub></td>
   </tr>
 </table>
+
+<sub>Book pages in the screenshots: <a href="https://openstax.org/details/books/university-physics-volume-1"><i>University Physics Volume 1</i></a> by OpenStax, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</sub>
 
 ## Get the Windows installer without installing anything (GitHub Actions)
 
